@@ -103,6 +103,9 @@ architecture tb of tb_avalonmm_slave is
   signal mem_read          : std_logic                                              := '0';
   signal mem_waitrequest   : std_logic                                              := '0';
   signal mem_readdatavalid : std_logic                                              := '0';
+  
+  signal test_signal_read_data : std_logic_vector(MEM_DATA_WIDTH_BITS-1 downto 0);
+  signal test_signal_write_data : std_logic_vector(MEM_DATA_WIDTH_BITS-1 downto 0);
 
 begin
   -----------------------------------------------------------------------------
@@ -142,12 +145,10 @@ begin
     -- The lines below set the test output verbosity, which can help debug
     -----------------------------------------------------------------------------
 
-    --    set_format(display_handler, verbose, true);
-    --    show(tb_logger, display_handler, verbose);
-    --    show(master_logger, display_handler, verbose);
-    --    show(com_logger, display_handler, verbose);
-    --
-    --    wait_clocks_200(num => 1);
+        set_format(display_handler, verbose, true);
+        show(tb_logger, display_handler, verbose);
+    
+        wait until rising_edge(clk_100);
 
     -----------------------------------------------------------------------------
 
@@ -162,6 +163,27 @@ begin
       mem_burstcount(0) <= '1';
 
       -----------------------------------------------------------------------------
+      -- Manual testing of the memory
+      -----------------------------------------------------------------------------
+      
+      for i in 0 to tb_cfg.burst_count-1 loop
+        test_signal_write_data <= std_logic_vector(to_unsigned(i, MEM_DATA_WIDTH_BITS));
+        wait until rising_edge(clk_100);        
+        write_word(memory, i, test_signal_write_data);
+        wait until rising_edge(clk_100);        
+        test_signal_read_data <= read_word(memory, i, MEM_DATA_WIDTH_BITS/8);
+        wait until rising_edge(clk_100);        
+      end loop;
+      
+      wait until rising_edge(clk_100);
+              
+      for i in 0 to tb_cfg.burst_count-1 loop
+        test_signal_read_data <= read_word(memory, i, MEM_DATA_WIDTH_BITS/8);
+        wait until rising_edge(clk_100);        
+      end loop;
+          
+      
+      -----------------------------------------------------------------------------
       -- Write some data. This is set up to write MEM_BURST_COUNT words per cycle.
       -----------------------------------------------------------------------------
       
@@ -172,7 +194,7 @@ begin
             mem_writedata  <= (others => 'U');
             mem_write <= '0';            
             wait until rising_edge(clk_100);
-            mem_address    <= std_logic_vector(to_unsigned(i, mem_address'length));
+            mem_address    <= std_logic_vector(to_unsigned(i*MEM_DATA_WIDTH_BITS/8, mem_address'length));
             mem_burstcount <= std_logic_vector(to_unsigned(tb_cfg.burst_count, mem_burstcount'length));
             mem_writedata <= std_logic_vector(to_unsigned(data, mem_writedata'length));
             mem_write     <= '1';
@@ -190,9 +212,12 @@ begin
       
       wait until rising_edge(clk_100);
 
+
+      
+      
       -----------------------------------------------------------------------------
       -- Read the data back
-      -----------------------------------------------------------------------------
+      -----------------------------------------------------------------------------      
       
       info(tb_logger, "Reading...");
       data := 0;
@@ -200,7 +225,7 @@ begin
         wait until rising_edge(clk_100);
         mem_read       <= '1';
         mem_burstcount <= std_logic_vector(to_unsigned(tb_cfg.burst_count, mem_burstcount'length));
-        mem_address    <= std_logic_vector(to_unsigned(tb_cfg.burst_count*cycle, mem_address'length));
+        mem_address    <= std_logic_vector(to_unsigned(tb_cfg.burst_count*cycle*MEM_DATA_WIDTH_BITS/8, mem_address'length));
         wait until rising_edge(clk_100) and mem_waitrequest = '0';
         mem_read       <= '0';
 
